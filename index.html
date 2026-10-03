@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Recruitment Tracker</title>
+<style>
+:root{--bg:#f3f5f7;--card:#fff;--ink:#1c2733;--mute:#6b7885;--line:#dde3e8;--blue:#1f5fbf;--green:#1f8a4c;--red:#c43a31;--amber:#b7791f;--chip:#eaeef2}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12181f;--card:#1b242d;--ink:#e8eef3;--mute:#8d9bab;--line:#2c3945;--blue:#5b9bf0;--green:#4cc07f;--red:#ef6f66;--amber:#e0a643;--chip:#26323d}}
+:root[data-theme="dark"]{--bg:#12181f;--card:#1b242d;--ink:#e8eef3;--mute:#8d9bab;--line:#2c3945;--blue:#5b9bf0;--green:#4cc07f;--red:#ef6f66;--amber:#e0a643;--chip:#26323d}
+*{box-sizing:border-box}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 "Segoe UI",system-ui,sans-serif}
+header,main{max-width:1000px;margin:0 auto;padding:16px}
+h1{font-size:22px;margin:0 0 12px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:12px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px;text-align:left}
+.stat b{display:block;font-size:22px}.stat span{color:var(--mute);font-size:13px}
+form,.tools{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:12px;display:grid;gap:8px}
+form{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+input,select,button{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:9px 10px;min-height:40px}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1px}
+button{cursor:pointer;background:var(--chip)}
+button.primary{background:var(--blue);color:#fff;border-color:var(--blue);font-weight:600}
+.tools{grid-template-columns:2fr repeat(auto-fit,minmax(120px,1fr))}
+.tools .row{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap}
+.table{background:var(--card);border:1px solid var(--line);border-radius:8px;overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:720px}
+th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:13px;color:var(--mute);font-weight:600;cursor:pointer;user-select:none}
+tr:last-child td{border-bottom:0}
+.tg{border-radius:999px;padding:4px 12px;min-height:32px;font-size:13px;font-weight:600}
+.tg.yes{background:color-mix(in srgb,var(--green) 18%,transparent);color:var(--green);border-color:transparent}
+.tg.no{background:color-mix(in srgb,var(--red) 16%,transparent);color:var(--red);border-color:transparent}
+.tg.pend{color:var(--mute)}
+.tg.loc{color:var(--blue)}.tg.uk{color:var(--amber)}
+.del{min-height:32px;padding:2px 10px;color:var(--red)}
+.empty{padding:28px;text-align:center;color:var(--mute)}
+.note{color:var(--mute);font-size:12px;margin-top:8px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Recruitment tracker</h1>
+  <div class="stats" id="stats"></div>
+  <form id="add" autocomplete="off">
+    <input id="name" placeholder="Full name" required>
+    <input id="num" placeholder="Phone number" inputmode="tel">
+    <input id="pid" type="number" min="0" step="0.5" placeholder="Years of experience">
+    <select id="origin"><option>Local</option><option>UK</option></select>
+    <button class="primary" type="submit">Add candidate</button>
+  </form>
+  <div class="tools">
+    <input id="q" type="search" placeholder="Search name, number or experience">
+    <select id="fo"><option value="">All origins</option><option>Local</option><option>UK</option></select>
+    <select id="fa"><option value="">All attendance</option><option>Attended</option><option>Not attended</option></select>
+    <select id="fr"><option value="">All results</option><option>Pending</option><option>Passed</option><option>Failed</option></select>
+    <div class="row">
+      <button id="csv" type="button">Export CSV</button>
+      <button id="clear" type="button">Clear all</button>
+    </div>
+  </div>
+</header>
+<main>
+  <div class="table">
+    <table>
+      <thead><tr>
+        <th data-k="name">Name</th><th data-k="num">Number</th><th data-k="pid">Experience</th>
+        <th data-k="origin">Local/UK</th><th data-k="att">Attendance</th><th data-k="res">Result</th><th></th>
+      </tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="empty" id="empty">No candidates yet. Add one above.</div>
+  </div>
+  <p class="note">Tap Local/UK, Attendance or Result to change them. Marking someone Not attended resets their result to Pending. Data is saved in this browser only, so export a CSV for backups.</p>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const RES=["Pending","Passed","Failed"];
+const cycle=(v,arr)=>arr[(arr.indexOf(v)+1)%arr.length];
+const KEY="recruitment-tracker-v1";
+let people=[];
+try{people=JSON.parse(localStorage.getItem(KEY)||"[]");if(!Array.isArray(people))people=[]}catch(e){people=[]}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(people))}catch(e){}};
+let sortK="name",sortDir=1;
+
+function render(){
+  const q=$("q").value.trim().toLowerCase(),fo=$("fo").value,fa=$("fa").value,fr=$("fr").value;
+  const list=people.filter(p=>
+    (!q||[p.name,p.num,p.pid].some(v=>String(v).toLowerCase().includes(q)))&&
+    (!fo||p.origin===fo)&&(!fa||p.att===fa)&&(!fr||p.res===fr)
+  ).sort((a,b)=>String(a[sortK]).localeCompare(String(b[sortK]),undefined,{numeric:true})*sortDir);
+  $("rows").innerHTML=list.map(p=>`<tr>
+    <td><b>${esc(p.name)}</b></td><td>${esc(p.num)||"–"}</td><td>${p.pid!==""&&p.pid!=null?esc(p.pid)+(Number(p.pid)===1?" year":" years"):"–"}</td>
+    <td><button class="tg ${p.origin==="UK"?"uk":"loc"}" data-a="origin" data-id="${p.id}">${p.origin}</button></td>
+    <td><button class="tg ${p.att==="Attended"?"yes":"no"}" data-a="att" data-id="${p.id}">${p.att}</button></td>
+    <td><button class="tg ${p.res==="Passed"?"yes":p.res==="Failed"?"no":"pend"}" data-a="res" data-id="${p.id}">${p.res}</button></td>
+    <td><button class="del" data-a="del" data-id="${p.id}" aria-label="Delete ${esc(p.name)}">Delete</button></td></tr>`).join("");
+  $("empty").hidden=list.length>0;
+  const c=f=>people.filter(f).length;
+  $("stats").innerHTML=[["Total",people.length],["Attended",c(p=>p.att==="Attended")],["Not attended",c(p=>p.att!=="Attended")],
+    ["Passed",c(p=>p.res==="Passed")],["Failed",c(p=>p.res==="Failed")],["Local",c(p=>p.origin==="Local")],["UK",c(p=>p.origin==="UK")]]
+    .map(([l,n])=>`<div class="stat"><b>${n}</b><span>${l}</span></div>`).join("");
+}
+
+$("add").onsubmit=e=>{
+  e.preventDefault();
+  people.push({id:Date.now()+Math.random().toString(36).slice(2,6),name:$("name").value.trim(),num:$("num").value.trim(),
+    pid:$("pid").value.trim(),origin:$("origin").value,att:"Not attended",res:"Pending"});
+  save();e.target.reset();$("name").focus();render();
+};
+$("rows").onclick=e=>{
+  const b=e.target.closest("button");if(!b)return;
+  const p=people.find(x=>x.id===b.dataset.id);if(!p)return;
+  const a=b.dataset.a;
+  if(a==="del"){if(!confirm("Delete "+p.name+"?"))return;people=people.filter(x=>x!==p)}
+  else if(a==="origin")p.origin=p.origin==="Local"?"UK":"Local";
+  else if(a==="att"){p.att=p.att==="Attended"?"Not attended":"Attended";if(p.att==="Not attended")p.res="Pending"}
+  else if(a==="res")p.res=cycle(p.res,RES);
+  save();render();
+};
+document.querySelectorAll("th[data-k]").forEach(th=>th.onclick=()=>{
+  const k=th.dataset.k;sortDir=sortK===k?-sortDir:1;sortK=k;render();
+});
+["q","fo","fa","fr"].forEach(id=>$(id).oninput=render);
+$("clear").onclick=()=>{if(people.length&&confirm("Delete all "+people.length+" records?")){people=[];save();render()}};
+$("csv").onclick=()=>{
+  const rows=[["Name","Number","Years of experience","Local/UK","Attendance","Result"],...people.map(p=>[p.name,p.num,p.pid,p.origin,p.att,p.res])];
+  const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(",")).join("\n");
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
+  a.download="recruitment-tracker.csv";a.click();
+};
+render();
+</script>
+</body>
+</html>
