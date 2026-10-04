@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Recruitment Tracker</title>
+<style>
+:root{--bg:#f3f5f7;--card:#fff;--ink:#1c2733;--mute:#6b7885;--line:#dde3e8;--blue:#1f5fbf;--green:#1f8a4c;--red:#c43a31;--amber:#b7791f;--chip:#eaeef2}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12181f;--card:#1b242d;--ink:#e8eef3;--mute:#8d9bab;--line:#2c3945;--blue:#5b9bf0;--green:#4cc07f;--red:#ef6f66;--amber:#e0a643;--chip:#26323d}}
+:root[data-theme="dark"]{--bg:#12181f;--card:#1b242d;--ink:#e8eef3;--mute:#8d9bab;--line:#2c3945;--blue:#5b9bf0;--green:#4cc07f;--red:#ef6f66;--amber:#e0a643;--chip:#26323d}
+*{box-sizing:border-box}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 "Segoe UI",system-ui,sans-serif}
+header,main{max-width:1100px;margin:0 auto;padding:16px}
+.top{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+h1{font-size:22px;margin:0}
+#clock{color:var(--mute);font-size:14px;font-variant-numeric:tabular-nums}
+#sync{font-size:13px;margin-bottom:10px;color:var(--mute)}#sync.ok{color:var(--green)}#sync.warn{color:var(--amber)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:12px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px}
+.stat b{display:block;font-size:22px}.stat span{color:var(--mute);font-size:13px}
+form,.tools{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:12px;display:grid;gap:8px}
+form{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+form.editing{border-color:var(--blue);box-shadow:0 0 0 2px color-mix(in srgb,var(--blue) 30%,transparent)}
+.full{grid-column:1/-1}
+.exp,.org{display:flex;gap:8px}.exp select{flex:1;min-width:0}
+input,select,button,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:9px 10px;min-height:40px}
+textarea{resize:vertical;min-height:64px}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1px}
+button{cursor:pointer;background:var(--chip)}
+button.primary{background:var(--blue);color:#fff;border-color:var(--blue);font-weight:600}
+.tools{grid-template-columns:2fr repeat(auto-fit,minmax(120px,1fr))}
+.tools .row{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap}
+.table{background:var(--card);border:1px solid var(--line);border-radius:8px;overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:980px}
+th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap;vertical-align:top}
+th{font-size:13px;color:var(--mute);font-weight:600;cursor:pointer;user-select:none}
+tr:last-child td{border-bottom:0}
+td.cm{white-space:normal;min-width:180px;max-width:260px;overflow-wrap:anywhere}
+.when small{display:block;color:var(--mute);font-variant-numeric:tabular-nums}
+.tg{border-radius:999px;padding:4px 12px;min-height:32px;font-size:13px;font-weight:600}
+.tg.yes{background:color-mix(in srgb,var(--green) 18%,transparent);color:var(--green);border-color:transparent}
+.tg.no{background:color-mix(in srgb,var(--red) 16%,transparent);color:var(--red);border-color:transparent}
+.tg.pend{color:var(--mute)}
+.tg.loc.on{background:color-mix(in srgb,var(--blue) 18%,transparent);color:var(--blue);border-color:var(--blue)}
+.tg.uk.on{background:color-mix(in srgb,var(--amber) 20%,transparent);color:var(--amber);border-color:var(--amber)}
+.tg.off{background:transparent;color:var(--mute);opacity:.65}
+.act{display:flex;gap:6px}
+.act button{min-height:32px;padding:2px 10px}
+.del{color:var(--red)}
+.empty{padding:28px;text-align:center;color:var(--mute)}
+.note{color:var(--mute);font-size:12px;margin-top:8px}
+.locked #stats,.locked #add,.locked .tools,.locked main,.locked #out{display:none}
+#login{max-width:380px;margin:0 auto 12px}#login[hidden]{display:none}
+#login p{margin:0;color:var(--mute);font-size:13px}
+</style>
+</head>
+<body>
+<header>
+  <div class="top"><h1>Recruitment tracker</h1><div><span id="clock"></span> <button id="out" type="button">Sign out</button></div></div>
+  <div id="sync">Connecting…</div>
+  <form id="login" hidden>
+    <input id="em" type="email" placeholder="Email" required autocomplete="username">
+    <input id="pw" type="password" placeholder="Password" required autocomplete="current-password">
+    <button class="primary" type="submit">Sign in</button>
+    <p id="lerr"></p>
+  </form>
+  <div class="stats" id="stats"></div>
+  <form id="add" autocomplete="off">
+    <input id="name" placeholder="Full name" required>
+    <input id="num" placeholder="Phone number" inputmode="tel">
+    <div class="exp">
+      <select id="yrs" aria-label="Years of experience"></select>
+      <select id="mos" aria-label="Months of experience"></select>
+    </div>
+    <div class="org">
+      <button type="button" class="tg loc on" id="tl" aria-pressed="true">Local</button>
+      <button type="button" class="tg uk off" id="tu" aria-pressed="false">UK</button>
+    </div>
+    <textarea id="cm" class="full" placeholder="Comment about this applicant"></textarea>
+    <button class="primary" type="submit" id="save">Add candidate</button>
+    <button type="button" id="cancel" hidden>Cancel edit</button>
+  </form>
+  <div class="tools">
+    <input id="q" type="search" placeholder="Search name, number or comment">
+    <select id="fo"><option value="">All origins</option><option value="loc">Local</option><option value="uk">UK</option><option value="both">Local and UK</option></select>
+    <select id="fa"><option value="">All attendance</option><option>Attended</option><option>Not attended</option></select>
+    <select id="fr"><option value="">All results</option><option>Pending</option><option>Passed</option><option>Failed</option></select>
+    <div class="row">
+      <button id="csv" type="button">Export CSV</button>
+      <button id="imp" type="button">Import CSV</button>
+      <input id="file" type="file" accept=".csv,text/csv" hidden>
+      <button id="clear" type="button">Clear all</button>
+    </div>
+  </div>
+</header>
+<main>
+  <div class="table">
+    <table>
+      <thead><tr>
+        <th data-k="name">Name</th><th data-k="num">Number</th><th data-k="exp">Experience</th>
+        <th data-k="org">Local / UK</th><th data-k="att">Attendance</th><th data-k="res">Result</th>
+        <th data-k="ts">Date added</th><th data-k="cm">Comment</th><th></th>
+      </tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="empty" id="empty">No candidates yet. Add one above.</div>
+  </div>
+  <p class="note">Applicants are saved in Firebase, so the same list shows on any browser once you sign in. Use Import CSV to bring in a list exported from the old version.</p>
+</main>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+const FIREBASE_CONFIG={
+  apiKey:"AIzaSyBHUSofggXrD7hFA0TnEQtgOFl9o5DOvZs",
+  authDomain:"zaaa-recruitment-project.firebaseapp.com",
+  projectId:"zaaa-recruitment-project",
+  appId:"1:336541288351:web:54a1de106699eebab25faa"
+};
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const RES=["Pending","Passed","Failed"];
+const cycle=(v,arr)=>arr[(arr.indexOf(v)+1)%arr.length];
+const KEY="recruitment-tracker-v1";
+let people=[],col=null,canWrite=true;
+let sortK="ts",sortDir=-1,editId=null,fLoc=true,fUk=false;
+const norm=p=>{p.cm=p.cm||"";p.ts=p.ts||Date.now();p.yrs=p.yrs==null?"":p.yrs;p.mos=p.mos==null?"":p.mos;p.att=p.att||"Not attended";p.res=p.res||"Pending";return p};
+const setSync=(t,c)=>{$("sync").textContent=t;$("sync").className=c||""};
+function lsLoad(){try{const a=JSON.parse(localStorage.getItem(KEY)||"[]");people=Array.isArray(a)?a.map(norm):[]}catch(e){people=[]}}
+function lsSave(){try{localStorage.setItem(KEY,JSON.stringify(people))}catch(e){}}
+async function persist(p){
+  if(!col){lsSave();return}
+  try{await col.doc(p.id).set(p)}catch(e){setSync("Could not save: "+(e&&e.message||"no permission to write"),"warn")}
+}
+async function remove(p){
+  if(!col){people=people.filter(x=>x.id!==p.id);lsSave();return}
+  try{await col.doc(p.id).delete()}catch(e){setSync("Could not delete: "+(e&&e.message||"no permission"),"warn")}
+}
+const newId=()=>Date.now()+Math.random().toString(36).slice(2,6);
+
+$("yrs").innerHTML='<option value="">Years</option>'+Array.from({length:41},(_,i)=>`<option value="${i}">${i} ${i===1?"year":"years"}</option>`).join("");
+$("mos").innerHTML='<option value="">Months</option>'+Array.from({length:12},(_,i)=>`<option value="${i}">${i} ${i===1?"month":"months"}</option>`).join("");
+
+const expTxt=p=>{
+  if(p.yrs===""&&p.mos==="")return"–";
+  const y=+p.yrs||0,m=+p.mos||0,a=[];
+  if(y)a.push(y+(y===1?" yr":" yrs"));
+  if(m)a.push(m+(m===1?" mo":" mos"));
+  return a.join(" ")||"None";
+};
+const orgTxt=p=>[p.loc&&"Local",p.uk&&"UK"].filter(Boolean).join(", ");
+const sortVal={exp:p=>(+p.yrs||0)*12+(+p.mos||0),org:p=>orgTxt(p),ts:p=>p.ts};
+const fmt=ts=>new Date(ts).toLocaleString(undefined,{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});
+const ago=ts=>{
+  const s=Math.max(0,Math.floor((Date.now()-ts)/1000));
+  if(s<60)return s+"s ago";
+  if(s<3600)return Math.floor(s/60)+"m "+s%60+"s ago";
+  if(s<86400)return Math.floor(s/3600)+"h "+Math.floor(s%3600/60)+"m ago";
+  return Math.floor(s/86400)+"d "+Math.floor(s%86400/3600)+"h ago";
+};
+
+function setTog(){
+  $("tl").className="tg loc "+(fLoc?"on":"off");$("tl").setAttribute("aria-pressed",fLoc);
+  $("tu").className="tg uk "+(fUk?"on":"off");$("tu").setAttribute("aria-pressed",fUk);
+}
+$("tl").onclick=()=>{fLoc=!fLoc;setTog()};
+$("tu").onclick=()=>{fUk=!fUk;setTog()};
+
+function resetForm(){
+  $("add").reset();editId=null;fLoc=true;fUk=false;setTog();
+  $("save").textContent="Add candidate";$("cancel").hidden=true;$("add").classList.remove("editing");
+}
+$("cancel").onclick=resetForm;
+
+function render(){
+  const q=$("q").value.trim().toLowerCase(),fo=$("fo").value,fa=$("fa").value,fr=$("fr").value;
+  const val=p=>(sortVal[sortK]||(x=>x[sortK]))(p);
+  const list=people.filter(p=>
+    (!q||[p.name,p.num,p.cm].some(v=>String(v==null?"":v).toLowerCase().includes(q)))&&
+    (!fo||(fo==="both"?p.loc&&p.uk:p[fo]))&&(!fa||p.att===fa)&&(!fr||p.res===fr)
+  ).sort((a,b)=>String(val(a)).localeCompare(String(val(b)),undefined,{numeric:true})*sortDir);
+  $("rows").innerHTML=list.map(p=>`<tr>
+    <td><b>${esc(p.name)}</b></td><td>${esc(p.num)||"–"}</td><td>${expTxt(p)}</td>
+    <td><div class="act"><button class="tg loc ${p.loc?"on":"off"}" data-a="loc" data-id="${esc(p.id)}">Local</button><button class="tg uk ${p.uk?"on":"off"}" data-a="uk" data-id="${esc(p.id)}">UK</button></div></td>
+    <td><button class="tg ${p.att==="Attended"?"yes":"no"}" data-a="att" data-id="${esc(p.id)}">${esc(p.att)}</button></td>
+    <td><button class="tg ${p.res==="Passed"?"yes":p.res==="Failed"?"no":"pend"}" data-a="res" data-id="${esc(p.id)}">${esc(p.res)}</button></td>
+    <td class="when">${fmt(p.ts)}<small data-ts="${p.ts}">${ago(p.ts)}</small></td>
+    <td class="cm">${esc(p.cm)||"–"}</td>
+    <td><div class="act"><button data-a="edit" data-id="${esc(p.id)}">Edit</button><button class="del" data-a="del" data-id="${esc(p.id)}" aria-label="Delete ${esc(p.name)}">Delete</button></div></td></tr>`).join("");
+  $("empty").hidden=list.length>0;
+  const c=f=>people.filter(f).length;
+  $("stats").innerHTML=[["Total",people.length],["Attended",c(p=>p.att==="Attended")],["Not attended",c(p=>p.att!=="Attended")],
+    ["Passed",c(p=>p.res==="Passed")],["Failed",c(p=>p.res==="Failed")],["Local",c(p=>p.loc)],["UK",c(p=>p.uk)]]
+    .map(([l,n])=>`<div class="stat"><b>${n}</b><span>${l}</span></div>`).join("");
+}
+
+$("add").onsubmit=async e=>{
+  e.preventDefault();
+  const d={name:$("name").value.trim(),num:$("num").value.trim(),yrs:$("yrs").value,mos:$("mos").value,loc:fLoc,uk:fUk,cm:$("cm").value.trim()};
+  let p;
+  if(editId){p=people.find(x=>x.id===editId);if(p)Object.assign(p,d)}
+  if(!p){p={id:newId(),ts:Date.now(),att:"Not attended",res:"Pending",...d};people.push(p)}
+  resetForm();$("name").focus();render();
+  await persist(p);
+};
+$("rows").onclick=async e=>{
+  const b=e.target.closest("button");if(!b)return;
+  const p=people.find(x=>x.id===b.dataset.id);if(!p)return;
+  const a=b.dataset.a;
+  if(a==="del"){if(!confirm("Delete "+p.name+"?"))return;if(editId===p.id)resetForm();people=people.filter(x=>x!==p);render();await remove(p);return}
+  if(a==="edit"){
+    editId=p.id;$("name").value=p.name;$("num").value=p.num;$("yrs").value=p.yrs;$("mos").value=p.mos;$("cm").value=p.cm;
+    fLoc=!!p.loc;fUk=!!p.uk;setTog();$("save").textContent="Save changes";$("cancel").hidden=false;$("add").classList.add("editing");
+    $("add").scrollIntoView({behavior:"smooth",block:"start"});$("name").focus({preventScroll:true});return;
+  }
+  if(a==="loc")p.loc=!p.loc;
+  else if(a==="uk")p.uk=!p.uk;
+  else if(a==="att"){p.att=p.att==="Attended"?"Not attended":"Attended";if(p.att==="Not attended")p.res="Pending"}
+  else if(a==="res")p.res=cycle(p.res,RES);
+  render();await persist(p);
+};
+document.querySelectorAll("th[data-k]").forEach(th=>th.onclick=()=>{
+  const k=th.dataset.k;sortDir=sortK===k?-sortDir:1;sortK=k;render();
+});
+["q","fo","fa","fr"].forEach(id=>$(id).oninput=render);
+$("clear").onclick=async()=>{
+  if(!people.length||!confirm("Delete all "+people.length+" records for everyone?"))return;
+  const all=people.slice();people=[];resetForm();render();
+  for(const p of all)await remove(p);
+};
+$("csv").onclick=()=>{
+  const rows=[["Name","Number","Years","Months","Local/UK","Attendance","Result","Date added","Comment"],
+    ...people.map(p=>[p.name,p.num,p.yrs,p.mos,orgTxt(p),p.att,p.res,new Date(p.ts).toLocaleString(),p.cm])];
+  const csv=rows.map(r=>r.map(v=>'"'+String(v==null?"":v).replace(/"/g,'""')+'"').join(",")).join("\n");
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
+  a.download="recruitment-tracker.csv";a.click();
+};
+function parseCSV(t){
+  const rows=[];let r=[],f="",q=false;
+  for(let i=0;i<t.length;i++){
+    const c=t[i];
+    if(q){if(c==='"'){if(t[i+1]==='"'){f+='"';i++}else q=false}else f+=c}
+    else if(c==='"')q=true;
+    else if(c===","){r.push(f);f=""}
+    else if(c==="\n"||c==="\r"){if(c==="\r"&&t[i+1]==="\n")i++;r.push(f);f="";rows.push(r);r=[]}
+    else f+=c;
+  }
+  if(f||r.length){r.push(f);rows.push(r)}
+  return rows.filter(x=>x.some(v=>v.trim()));
+}
+$("imp").onclick=()=>$("file").click();
+$("file").onchange=async e=>{
+  const fl=e.target.files[0];e.target.value="";if(!fl)return;
+  const rows=parseCSV((await fl.text()).replace(/^\uFEFF/,"")).slice(1);
+  const now=Date.now(),made=rows.filter(r=>(r[0]||"").trim()).map((r,i)=>norm({
+    id:newId(),name:r[0].trim(),num:(r[1]||"").trim(),yrs:(r[2]||"").trim(),mos:(r[3]||"").trim(),
+    loc:/local/i.test(r[4]||""),uk:/\buk\b/i.test(r[4]||""),
+    att:/^attended$/i.test((r[5]||"").trim())?"Attended":"Not attended",
+    res:RES.find(x=>x.toLowerCase()===(r[6]||"").trim().toLowerCase())||"Pending",
+    ts:Date.parse(r[7])||now-i,cm:(r[8]||"").trim()}));
+  if(!made.length){alert("No candidates found in that file.");return}
+  if(!confirm("Import "+made.length+" candidates?"))return;
+  people.push(...made);render();
+  for(const p of made)await persist(p);
+};
+const tick=()=>{
+  $("clock").textContent=new Date().toLocaleString(undefined,{weekday:"short",day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit"});
+  document.querySelectorAll("[data-ts]").forEach(el=>el.textContent=ago(+el.dataset.ts));
+};
+setInterval(tick,1000);
+render();tick();
+
+let unsub=null;
+document.body.classList.add("locked");
+try{
+  firebase.initializeApp(FIREBASE_CONFIG);
+  const auth=firebase.auth(),db=firebase.firestore();
+  $("login").hidden=false;setSync("Sign in to see the applicants.");
+  $("login").onsubmit=async e=>{
+    e.preventDefault();$("lerr").textContent="";
+    try{await auth.signInWithEmailAndPassword($("em").value.trim(),$("pw").value)}
+    catch(err){$("lerr").textContent="Sign-in failed: check email and password."}
+  };
+  $("out").onclick=()=>auth.signOut();
+  auth.onAuthStateChanged(u=>{
+    if(unsub){unsub();unsub=null}
+    document.body.classList.toggle("locked",!u);
+    $("login").hidden=!!u;
+    if(!u){col=null;people=[];render();setSync("Sign in to see the applicants.");return}
+    $("pw").value="";
+    col=db.collection("candidates");
+    unsub=col.onSnapshot(s=>{
+      people=s.docs.map(d=>norm({id:d.id,...d.data()}));
+      render();setSync("Synced across devices · "+people.length+" saved","ok");
+    },e=>setSync("Sync problem: "+(e&&e.message||"unavailable"),"warn"));
+  });
+}catch(e){setSync("Firebase is not set up yet. Paste your config at the top of the script.","warn")}
+
+const WELCOME="Welcome to zaaaah headquarters";
+let spoken=false;
+const evs=["pointerdown","keydown","touchstart"];
+const unhook=()=>evs.forEach(ev=>removeEventListener(ev,speak));
+function speak(){
+  if(spoken||!("speechSynthesis" in window))return;
+  try{
+    const u=new SpeechSynthesisUtterance(WELCOME);
+    u.rate=0.9;u.volume=1;
+    u.onstart=()=>{spoken=true;unhook()};
+    speechSynthesis.cancel();speechSynthesis.speak(u);
+  }catch(e){}
+}
+evs.forEach(ev=>addEventListener(ev,speak,{passive:true}));
+speak();
+</script>
+</body>
+</html>
